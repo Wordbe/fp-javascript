@@ -195,7 +195,136 @@ go(
 > - map, filter 계열의 함수들은 결합법칙이 성립해서, 순서 상관없이 같은 결과를 낼 수 있다.
 > - reduce, take 계열의 함수들은 최종적인 결과를 만드는 함수이다. 이런 함수는 지연성을 가지기 보다는 종결내는 종류의 함수이다.
 
+<br />
 
+```javascript
+const join = curry((sep=',', iter) => 
+    reduce((a, b) => `${a}${sep}${b}`, iter));
+
+const queryStr = obj => go(
+    obj,
+    L.entries,
+    L.map(([k, v]) => `${k}=${v}`),
+    join('&')
+);
+
+log(queryStr({ limit: 10, offset: 10, type: 'notice' }));
+```
+
+- `Array.prototype.join` 보다 다형성이 높은 join 함수를 반들 수 있다.
+- 위에서 만든 `join` 는 배열 뿐만 아니라, 다양한 이터러블 객체를 받을 수 있기 때문이다.
+
+<br />
+
+## take, find
+
+```javascript
+const users = [
+    { age: 28 },
+    { age: 29 },
+    { age: 30 },
+    { age: 31 },
+    { age: 32 },
+    { age: 33 },
+    { age: 34 },
+    { age: 35 },
+    { age: 36 },
+];
+
+const find = curry((f, iter) => go(
+    iter,
+    L.filter(f),
+    take(1),
+    ([a]) => a
+));
+
+log(find(u => u.age < 30)(users));
+```
+
+- find 는 조건에 맞는 요소를 필터링하여 1개만 취해서 구조분해하여 반환해주는 함수이다.
+- curry 를 해서 사용하기 더 편리하도록 변경했다.
+
+<br />
+
+## L.map, L.filter 이용해서 map, filter 만들기
+
+```javascript
+const takeAll = take(Infinity);
+
+const lmap = curry(pipe(
+    L.map,
+    takeAll
+));
+
+log(lmap(a => a + 10, L.range(4)));
+
+const lfilter = curry(pipe(
+    L.filter,
+    takeAll
+));
+
+log(lfilter(a => a % 2, L.range(4)));
+```
+
+<br />
+
+## L.flatten, flatten
+
+```javascript
+const isIterable = a => a && a[Symbol.iterator];
+
+L.flatten = function *(iter) {
+    for (const a of iter) {
+        if (isIterable(a)) for (const b of a) yield b;
+        else yield a;
+    }
+};
+
+const dummyIter = [[1, 2], 3, 4, [5, 6], [7, 8, 9]];
+let it = L.flatten(dummyIter);
+log(it.next());
+log(it.next());
+log(it.next());
+log(it.next());
+
+const lflatten = pipe(L.flatten, takeAll);
+log(lflatten(dummyIter));
+```
+
+- flatten 은 iterable 과 일반 값들을 하나의 이터레이터로 펼쳐주는 함수이다.
+
+<br />
+
+## yield *, L.deepFlat
+
+- `yield *a` 는 `for (const b of a) yield b` 와 같다.
+- 계층 구조가 깊은 iterable 을 모두 펼치고 싶다면, `L.deepFlat` 을 구현한다.
+  - 재귀함수를 사용한다.
+
+```javascript
+L.deepFlat = function *f(iter) {
+    for (const a of iter) {
+        if (isIterable(a)) yield *f(a);
+        else yield a;
+    }
+};
+
+const deepIt = L.deepFlat([1, [2, [3, 4], [[5]]]]);
+log([...deepIt]);
+```
+
+<br />
+
+## L.flatMap, flatMap
+
+```javascript
+const dummyIter2 = [[1, 2,], [3, 4], [5, 6, 7]];
+let flatMapped = L.flatMap(map(a => a * a), dummyIter2);
+log([...flatMapped]);
+
+const lflatMap = curry(pipe(L.flatMap, takeAll));
+log(lflatMap(map(a => a * a), dummyIter2));
+```
 
 
 

@@ -71,3 +71,26 @@ L.map = curry(function *(f, iter) {
 L.filter = curry(function *(f, iter) {
     for (const a of iter) if (f(a)) yield a;
 });
+
+// Lazy version of Object.entries
+L.entries = function *(obj) {
+    for (const k in obj) yield [k, obj[k]];
+};
+
+const isIterable = a => a && a[Symbol.iterator];
+
+L.flatten = function *(iter) {
+    for (const a of iter) {
+        if (isIterable(a)) yield *a;
+        else yield a;
+    }
+};
+
+L.deepFlat = function *f(iter) {
+    for (const a of iter) {
+        if (isIterable(a)) yield *f(a);
+        else yield a;
+    }
+};
+
+L.flatMap = curry(pipe(L.map, L.flatten));
