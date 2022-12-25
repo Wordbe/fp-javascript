@@ -1,0 +1,29 @@
+.body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #9bbbd4;
+}
+
+.image {
+    width: 40em;
+    height: 24em;
+    border-radius: 2em;
+}
+
+.snowflake {
+    width: 0.5em;
+    height: 0.5em;
+    border-radius: 50%;
+    background-color: white;
+    position: absolute;
+    top: -0.5em;
+}
+
+@keyframes fall {
+    from {}
+    to {
+        transform: translateY(300vh);
+        opacity: 0;
+    }
+}
