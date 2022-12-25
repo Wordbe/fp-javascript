@@ -25,13 +25,6 @@ const ages = [
     { age: 36 },
 ];
 
-const find = curry((f, iter) => go(
-    iter,
-    L.filter(f),
-    take(1),
-    ([a]) => a
-));
-
 log(find(u => u.age < 30)(ages));
 
 // Make map, filter using L.map, L.filter

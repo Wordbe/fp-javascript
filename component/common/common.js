@@ -21,15 +21,23 @@ const filter = curry((f, iter) => {
     return res;
 });
 
+const goThen = (a, f) => a instanceof Promise ? a.then(f) : f(a);
+
 const reduce = curry((f, acc, iter) => {
     if (!iter) {
         iter = acc[Symbol.iterator]();
         acc = iter.next().value;
+    } else {
+        iter = iter[Symbol.iterator]();
     }
-    for (const it of iter) {
-        acc = f(acc, it);
-    }
-    return acc;
+
+    return goThen(acc, function recur(acc) {
+        for (const it of iter) {
+            acc = f(acc, it);
+            if (acc instanceof Promise) return acc.then(recur);
+        }
+        return acc;
+    });
 });
 
 const go = (...args) => reduce((a, f) => f(a), args);
@@ -53,6 +61,13 @@ const take = curry((l, iter) => {
     }
     return res;
 });
+
+const find = curry((f, iter) => go(
+    iter,
+    L.filter(f),
+    take(1),
+    ([a]) => a
+));
 
 // Lazy Functions
 const L = {};
