@@ -85,3 +85,7 @@ go([1, 2, 3, 4, 5, 6, 7, 8, 9],
     log,
     _ => console.timeEnd('')
 );
+
+C.map(a => delay500(a * a), [1, 2, 3,4]).then(log);
+C.filter(a => delay500(a % 2), [1, 2, 3, 4]).then(log);
+

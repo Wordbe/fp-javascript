@@ -114,14 +114,18 @@ const range = pipe(L.range, takeAll);
 // Concurrency
 const C = {};
 const noop = () => {}; // no opreation function
-const catchNoop = arr =>
+const catchNoop = ([...arr]) =>
     (arr.forEach(a => a instanceof Promise ? a.catch(noop) : a), arr);
 
-C.reduce = curry((f, acc, iter) => {
-    const cIter = catchNoop(iter ? [...iter] : [...acc]);
-    return iter ? 
-        reduce(f, acc, [...cIter]) :
-        reduce(f, [...cIter]);
-});
+C.reduce = curry((f, acc, iter) => iter ? 
+        reduce(f, acc, catchNoop(iter)) :
+        reduce(f, catchNoop(acc)));
 
-C.take = curry((l, iter) => take(l, catchNoop([...iter])));
+C.take = curry((l, iter) => take(l, catchNoop(iter)));
+
+C.takeAll = C.take(Infinity);
+
+C.map = curry(pipe(L.map, C.takeAll));
+
+C.filter = curry(pipe(L.filter, C.takeAll));
+
