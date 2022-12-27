@@ -130,3 +130,218 @@ fg(3).then(log); // Nothing
 
 
 
+<br />
+
+---
+
+## Lazy Evalution + Promise : L.map, map, take
+
+- 일반 값과 Promise 값이 섞여 진행되는 함수들에서, 문제없이 함수가 실행될 수 있도록 `L.map` 과 `take` 를 변경해본다.
+
+```javascript
+const goThen = (a, f) => a instanceof Promise ? a.then(f) : f(a);
+
+L.map = curry(function *(f, iter) {
+    for (const a of iter) yield goThen(a, f);
+});
+
+const take = curry((l, iter) => {
+    let res = [];
+    iter = iter[Symbol.iterator]();
+    return function recur() {
+        let cur;
+        while (!(cur = iter.next()).done) {
+            const a = cur.value;
+            if (a instanceof Promise) 
+                return a.then(a => (res.push(a), res).length == l ? res : recur());
+
+            res.push(a);
+            if (res.length == l) return res;
+        }
+        return res;
+    } ();
+});
+```
+
+- `goThen` 함수는 프로미스가 들어오면 `then` 을 실행해주고, 아니면 `f(a)` 를 그대로 실행해준다.
+- `L.map` 을 보면 `goThen` 을 사용해 프로미스, 일반 값 둘 다 사용할 수 있도록 했다.
+- `take` 함수를 보면, `recur` 함수를 작성해서, 내부 분기문에 `Promise` 값이 들어오는 경우, `then` 을 호출하면서, 재귀 호출을 하고 있다.
+
+```javascript
+go(
+    [1, 2, 3],
+    L.map(a => a + 10),
+    take(2),
+    log
+);
+go(
+    [1, 2, 3],
+    L.map(a => Promise.resolve(a + 10)),
+    take(2),
+    log
+);
+go(
+    [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+    L.map(a => a + 10),
+    take(2),
+    log
+);
+go(
+    [Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)],
+    L.map(a => Promise.resolve(a + 10)),
+    take(2),
+    log
+);
+
+// output
+(2) [11, 12]
+(2) [11, 12]
+(2) [11, 12]
+(2) [11, 12]
+```
+
+- 4 가지 케이스 모두 성공적으로 작동한다.
+
+<br />
+
+## Kleisli Composition : L.filter, filter, nop, take
+
+```javascript
+const nop = Symbol('nop');
+
+L.filter = curry(function *(f, iter) {
+    for (const a of iter) {
+        const fa = goThen(a, f);
+        if (fa instanceof Promise) {
+            yield fa.then(fa => fa ? a : Promise.reject(nop));
+        }
+        else if (fa) yield a;
+    }
+});
+
+const take = curry((l, iter) => {
+    let res = [];
+    iter = iter[Symbol.iterator]();
+    return function recur() {
+        let cur;
+        while (!(cur = iter.next()).done) {
+            const a = cur.value;
+            if (a instanceof Promise) 
+                return a
+                    .then(a => (res.push(a), res).length == l ? res : recur())
+                    .catch(e => e == nop ? recur() : Promise.reject(e));
+
+            res.push(a);
+            if (res.length == l) return res;
+        }
+        return res;
+    } ();
+});
+```
+
+- filter 함수에서 필터링 결과(fa)가 Promise 이고, 참이면 그대로 값(a, 이 때는 Promise 객체이다.)을 반환하고, 그렇지 않다면 `Promise.reject()` 에 우리가 의도한 상황임을 뜻하는 `nop` 심볼을 담는다. 이렇게 되면 `catch` 할 때 `nop` 인지 여부를 판단해 원하는 처리를 할 수 있다.
+- take 함수도 `catch` 부분을 추가한다.
+
+```javascript
+go(
+    [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    map(a => Promise.resolve(a * a)),
+    filter(a => a % 2),
+    log
+);
+
+go(
+    [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    L.map(a => Promise.resolve(a * a)),
+    L.filter(a => a % 2),
+    take(4),
+    log
+);
+
+// output
+(5) [1, 9, 25, 49, 81]
+(4) [1, 9, 25, 49]
+```
+
+합성함수에서 중간에 에러가 난 경우는, 이 후에 영향을 미치지 않고 따로 처리할 수 있도록 `Promise.reject` 와 `catch` 를 사용한다.
+
+- `Promise.reject` 이 발생하면 중간 `then` 을 모두 무시하고, 바로 `catch` 코드로 넘어간다.
+- 이로써 `L.map`, 비동기 동시성과 지연 평가를 모두 지원하는 코드로 변경되었다.
+
+<br />
+
+<br />
+
+## reduce 에서 nop 지원
+
+```javascript
+const head = iter => goThen(take(1, iter), ([h]) => h);
+
+const reduceThen = (acc, a, f) => a instanceof Promise ?
+    a.then(a => f(acc, a), e => e == nop ? acc : Promise.reject(e)) :
+    f(acc, a);
+
+const reduce = curry((f, acc, iter) => {
+    if (!iter) return reduce(f, head(iter = acc[Symbol.iterator]()), iter);
+
+    iter = iter[Symbol.iterator]();
+    return goThen(acc, function recur(acc) {
+        let cur;
+        while (!(cur = iter.next()).done) {
+            acc = reduceThen(acc, cur.value, f);
+            if (acc instanceof Promise) return acc.then(recur);
+        }
+        return acc;
+    });
+});
+```
+
+- reduce 는 2개의 값(**acc, cur**)을 받아서, 전달 받은 함수를 실행시킨다.
+  - 이 두 변수가 타입이 다를 경우 원하지 않는 결과가 나오므로, 타입에 관계없이 원하는 결과를 반환하도록 만들어본다.
+
+<br />
+
+<br />
+
+## 지연된 함수열을 병렬적으로 평가하기 : C.reduce, C.take
+
+- I/O 작업, 외부 요청 작업 등에 대해 병렬적으로 구성하면 효율적이다.
+- `C` 맵에 동시성을 높여 진행되도록 하는 `[...iter]` 로직을 담아 병렬처리가 되는 코드로 변경한다.
+
+```javascript
+// Concurrency
+const C = {};
+const noop = () => {}; // no opreation function
+const catchNoop = arr =>
+    (arr.forEach(a => a instanceof Promise ? a.catch(noop) : a), arr);
+
+C.reduce = curry((f, acc, iter) => {
+    const cIter = catchNoop(iter ? [...iter] : [...acc]);
+    return iter ? 
+        reduce(f, acc, [...cIter]) :
+        reduce(f, [...cIter]);
+});
+
+C.take = curry((l, iter) => take(l, catchNoop([...iter])));
+
+const delay500 = a => new Promise(resolve => setTimeout(() => resolve(a), 500));
+
+console.time('');
+go([1, 2, 3, 4, 5, 6, 7, 8, 9],
+    L.map(a => delay500(a * a)),
+    L.filter(a => delay500(a % 2)),
+    C.take(2),
+    C.reduce(add),
+    log,
+    _ => console.timeEnd('')
+);
+
+// output
+10
+: 1008.380859375 ms
+```
+
+
+
+
+

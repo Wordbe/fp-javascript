@@ -28,8 +28,6 @@ const ages = [
 log(find(u => u.age < 30)(ages));
 
 // Make map, filter using L.map, L.filter
-const takeAll = take(Infinity);
-
 const lmap = curry(pipe(L.map, takeAll));
 
 log(lmap(a => a + 10, L.range(4)));
