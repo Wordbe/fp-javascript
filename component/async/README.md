@@ -349,5 +349,137 @@ go([1, 2, 3, 4, 5, 6, 7, 8, 9],
 - 지연 평가하여 꼭 필요한 연산만 할 것인지
 - CPU 부하는 있더라도, 빠른 연산을 위해 병렬 연산을 할 것인지 섞어서 사용 가능
 
+<br />
+
+## async, await
+
+- async 가 붙은 함수는 `Promise` 를 리턴한다. 즉, 즉시 평가되지 않는다.
+- 따라서 결과값을 보려면 `Promise.then` 처리를 해주어야 한다. `await` 문법은 `Promise` 에 대해 즉시 평가해주는 문법이다.
+
+```javascript
+const delay = a => new Promise(resolve =>setTimeout(() => resolve(a), 500));
+
+const f1 = async () => {
+    const a = await delay(10);
+    const b = await delay(20);
+
+    return a + b;
+}
+
+f1().then(log); // 30
+```
+
+<br /><br />
+
+`Array.prototype.map` 보다 FxJS `map` 이 다형성 높은 함수이다. 아래 예제를 보자.
+
+```javascript
+async function f2() {
+    const list = [1, 2, 3, 4];
+    const temp = list.map(async a => await delay(a * a));
+    log(temp); // (4) [Promise, Promise, Promise, Promise]
+    const res = await temp;
+    log(res); // (4) [Promise, Promise, Promise, Promise]
+}
+f2();
+
+async function f3() {
+    const list = [1, 2, 3, 4];
+    const temp = map(a => delay(a * a), list);
+    log(temp); // Promise {[[PromiseState]]: 'pending', [[PromiseResult]]: undefined}
+    const res = await temp;
+    log(res); // (4) [1, 4, 9, 16]
+}
+f3();
+```
+
+- `list.map` 은 Promise 가 담긴 배열을 리턴한다. 반면, `map` 은 Promise 를 리턴한다. 따라서 `await` 에서 평가가 가능하다.
+
+<br />
+
+## Pipeline vs async:await
+
+목적이 다르다.
+
+- 비동기코드, 동기코드든 상관없이 pipeline 은 함수를 조합하고, 가독성 좋게 유지보수하기 좋은(쉽고 안전한) 코드를 만들기 위함이다.
+  - 읽기가 쉽다.
+  - 안정적일 것이라 기대할 수 있다.
+  - 기능 변경이 용이하다.
+- async:await 는 비동기 코드를 동기코드처럼 쉽게 사용할 수 있도록 하기 위함이다.
+  - 절차형에서 비동기 코드를 좀 더 잘쓰게 하기 위함.
+  - pipeline 을 이 방식으로 하려면 읽기 어려운 코드가 됨.
+  - 개발자마다 구현방식도 다르므로 안정성도 떨어져 테스트하기도 어렵게 됨
+  - 기능 변경시 매우 복잡함.
+
+```javascript
+const arr = [1, 2, 3, 4, 5, 6, 7, 8];
+
+function f5(list) {
+    return go(list,
+        L.map(a => delay(a * a)),
+        L.filter(a => delay(a % 2)),
+        L.map(a => delay(a + 1)),
+        take(3),
+        reduce((a, b) => delay(a + b)),
+    )
+}
+
+go(f5(arr), log);
+
+
+async function f6(list) {
+    let temp = [];
+    for (const a of list) {
+        const b = await delay(a * a);
+        if (await delay(b % 2)) {
+            const c = await delay(b + 1);
+            temp.push(c);
+            if (temp.length == 3) break;      
+        }
+    }
+    let res = temp[0], i = 0;
+    while (++i < temp.length) {
+        res = await delay(res + temp[i]);
+    }
+    return res;
+}
+
+f6(arr).then(log);
+```
+
+<br />
+
+## 비동기 에러핸들링
+
+- 비동기 에러핸들링을 위해 `Promise.reject` 로 나온 에러를 `await` 으로 받아주고 이것을 `try ~ catch` 로 감싸주면 된다.
+- pipeline 코드는 Kleisli composition 으로 중간에 에러가나면 결국 `Promise.reject` 를 내보내도록 코딩이 되어있으므로, 비동기 에러핸들링이 용이하다.
+
+```javascript
+async function f9(list) {
+  try {
+    return await go(
+      list,
+      map(a => JSON.parse(a)),
+      filter(a => a % 2),
+      take(2)
+    );
+  } catch (e) {
+    log('[f9 ERROR]', e);
+    return [];
+  }
+}
+
+f9(['0', '1', '2', '3', '4', '{'])
+  .then(a => log('f9', a))
+  .catch(e => log('DO NOT reach here', e));
+
+// output
+[f9 ERROR] SyntaxError: Expected property name or '}' in JSON at position 1
+    ...
+{stack: 'SyntaxError: Expected property name or '}' in…p-javascript/component/common/common.js:17:5)', message: 'Expected property name or '}' in JSON at position 1'}
+
+f9 (0) []
+```
+
 
 
