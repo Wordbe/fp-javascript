@@ -78,7 +78,7 @@ console.log(queryString4(obj));
 
 <br />
 
-# 객체를 이터러블 프로그래밍으로 다루기
+# 객체(Javascript Object)를 이터러블 프로그래밍으로 다루기
 
 - 어떠한 값이든 이터러블 프로그래밍을 사용한다.
 
@@ -88,7 +88,100 @@ console.log(queryString4(obj));
 
 - 제너레이터 함수 안의 코드 한줄 한줄을 '값'으로 사용할 수 있어서 자유도가 높다.
 
-
+<br />
 
 - runtime 에서 `undefined` 는 최대한 사용하지 않는 것이 좋다.
   - DB에 저장하거나 서버에 전달할 수 없는 값이다.
+
+<br />
+
+# 사용자 정의 객체를 이터러블 프로그래밍으로
+
+- Map, Set 은 자바스크립트에서 사용자 정의된 객체라고 볼 수 있다.
+- **객체지향 프로그래밍과 이터러블 프로그래밍을 같이 사용할 수 있다.**
+  - 함수형 프로그래밍은 패러다임을 대체하려는 것이 아니라, 언어 자체를 더 편하고 효율적인 표현으로 대체로하려고 한다. 따라서 객체지향 프로그래밍과 같이 사용할 수 있다.
+
+```javascript
+class Model {
+    constructor(attrs = {}) {
+        this._attrs = attrs;
+    }
+
+    get(k) {
+        return this._attrs[k];
+    }
+
+    set(k, v) {
+        this._attrs[k] = v;
+        return this;
+    }
+}
+
+class Collection {
+    constructor(models = []) {
+        this._models = models;
+    }
+
+    at(idx) {
+        return this._models[idx];
+    }
+
+    add(model) {
+        this._models.push(model);
+        return this;
+    }
+
+    *[Symbol.iterator]() {
+        yield *this._models;
+    }
+}
+
+const coll = new Collection();
+coll.add(new Model({ id: 1, name: 'AA' }));
+coll.add(new Model({ id: 3, name: 'BB' }));
+coll.add(new Model({ id: 5, name: 'CC' }));
+console.log(coll.at(2).get('name'));
+console.log(coll.at(1).get('id'));
+
+_.go(
+    coll,
+    _.mapL(m => m.get('name')),
+    _.each(console.log)
+);
+```
+
+- `Collection` 을 이터러블로 사용하고싶다면, `[Symbol.iterator]() {}` 프로토콜을 정의해주면 된다.
+  - 위 코드는 제너레이터로 정의해주어서 지연 처리가 가능하도록 한다.
+
+```javascript
+// Product, Products
+class Product extends Model {}
+class Products extends Collection {
+    totalPrice() {
+        return _.go(
+            this, // iterable
+            _.mapL(p => p.get('price')),
+            _.reduce((a, b) => a + b)
+        );
+    }
+}
+
+const products = new Products();
+products.add(new Product({ id: 1, price: 10000 }));
+console.log(products.totalPrice());
+products.add(new Product({ id: 3, price: 25000 }));
+console.log(products.totalPrice());
+products.add(new Product({ id: 5, price: 35000 }));
+console.log(products.totalPrice());
+```
+
+- `Model`, `Collection` 을 상속해서 `Product`, `Products` 를 만들어보자.
+- `Products` 의 `this` 는 products iterable 을 의미하기 때문에 ( `*[Symbol.iterator]() { }` 을 정의했으므로 가능 )
+  - 그대로 이터러블 프로그래밍을 할 수 있다.
+
+<br />
+
+<br />
+
+
+
