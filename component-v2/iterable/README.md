@@ -183,5 +183,29 @@ console.log(products.totalPrice());
 
 <br />
 
+# 시간을 이터러블로 다루기
 
+- `new Date` 를 말하는 것이 아니라, `delay` 가 된 경우 이터러블의 순서를 제어할 수 있다는 의미
+- 여기서 좀 더 나아가면 iterable programming 에서 reactive programming 으로 간다.
+
+
+
+```javascript
+async function job() {
+    const payments = await _.go(
+        _.rangeL(1, Infinity),
+        _.mapL(Iamport.getPayments),
+        _.takeUntilL(({length}) => length < 3),
+        _.flat
+    );
+
+    console.log(payments);
+}
+job();
+```
+
+- page 단위로 가져온다.
+- 결제모듈(Iamport) 에서 결제된 내역 payments 를 가져온다.
+- 결제 데이터 있을 때까지 모두 가져온다.
+- 하나로 합친다.
 
