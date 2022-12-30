@@ -14,7 +14,7 @@
 # 명령형 습관 지우기
 
 - `reduce` 는 만능이 아니다.
-- `map` 과 `redcue` 를 조합해서 만드는 것이 더 가독성 좋고, 재사용성이 좋다.
+- `map` 과 `reduce` 를 조합해서 만드는 것이 더 가독성 좋고, 재사용성이 좋다.
   - `reduce` 에서 받는 두 인자  `acc` 과 `cur` 가 같은 값이면,  다른 인자로 초깃값 `acc` 을 주지 않아도 된다.
   - `reduce` + 복잡한 함수 + `acc` 으로 만드는 것보다 낫다.
 
@@ -209,3 +209,82 @@ job();
 - 결제 데이터 있을 때까지 모두 가져온다.
 - 하나로 합친다.
 
+<br />
+
+# 프론트엔드에서 함수형/이터러블/동시성 프로그래밍
+
+
+
+**async, await 비동기**
+
+```javascript
+async function f() {
+    let delay = ms => new Promise(resolve => setTimeout(() => resolve(ms), ms));
+    let res = delay(3000);
+    console.log(res); // Promise {[[PromiseState]]: 'pending', [[PromiseResult]]: undefined}
+    
+    let res2 = delay(3000);
+    console.log(res2); // Promise {[[PromiseState]]: 'pending', [[PromiseResult]]: undefined}
+
+    let res3 = await res + await res2;
+    console.log(res3); // 6000
+}
+
+f(); // took 3 seconds
+
+async function f() {
+    let delay = ms => new Promise(resolve => setTimeout(() => resolve(ms), ms));
+    let res = await delay(3000);
+    console.log(res); // 3000
+    
+    let res2 = await delay(3000);
+    console.log(res2); // 3000
+}
+
+f(); // took 6 seconds
+```
+
+
+
+- 이미지 목록 그리기
+
+- 아이템 지우기
+
+- 커스텀 confirm 창과 Promise
+
+- 클래스를 대신 함수로 하는 추상화
+
+- 이미지 동시성 다루기
+
+- 동시성 부하 조절
+
+  ```javascript
+  Images.load = limit => _.tap(
+      $.findAll('img'),
+      _.mapL(img => _ => new Promise(resolve => {
+          img.onload = () => resolve(img);
+          img.src = img.getAttribute('lazy-src');
+      })),
+      lazy => {
+          let r = _.rangeL(Infinity);
+          return _.go(
+              lazy,
+              _.groupBy(_ => Math.floor(r.next().value / limit)),
+              _.valuesL,
+              _.mapL(_.mapL(f => f())),
+              _.mapL(_.takeAllC),
+              _.each(_.each($.addClass('fade-in')))
+          )
+      }
+  );
+  
+  Images.load(8);
+  ```
+
+  - 이미지를 8개씩 동시에 불러오는 기능이다.
+
+
+
+- 고차 함수로 더 작게 나누어 재사용성 높이기 - 데이터형 없애기
+- 상위 스코프 변수를 사용하는 함수와 아닌 함수들 쪼개기
+- DOM을 다루는 고차 함수
